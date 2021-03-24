@@ -1,0 +1,2 @@
+repeat wait() until game.Players.LocalPlayer and game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("BodyEffects") and game.Players.LocalPlayer.Character.BodyEffects:FindFirstChild("Defense") end
+game.Players.LocalPlayer.Character.BodyEffects.Defense.CurrentBlockTime:Destroy()

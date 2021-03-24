@@ -1,0 +1,1368 @@
+print("checking...")
+local hash; do
+    local MOD = 2^32
+    local MODM = MOD-1
+    local bxor = bit32.bxor;
+    local band = bit32.band;
+    local bnot = bit32.bnot;
+    local rshift1 = bit32.rshift;
+    local rshift = bit32.rshift;
+    local lshift = bit32.lshift;
+    local rrotate = bit32.rrotate;
+
+    local str_gsub = string.gsub;
+    local str_fmt = string.format;
+    local str_byte = string.byte;
+    local str_char = string.char;
+    local str_rep = string.rep;
+
+    local k = {
+	    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+	    0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+	    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+	    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+	    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+	    0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+	    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+	    0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+	    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+	    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+	    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+	    0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+	    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+	    0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+	    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+	    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    }
+    local function str2hexa(s)
+        return (str_gsub(s, ".", function(c) return str_fmt("%02x", str_byte(c)) end))
+    end
+    local function num2s(l, n)
+        local s = ""
+        for i = 1, n do
+            local rem = l % 256
+            s = str_char(rem) .. s
+            l = (l - rem) / 256
+        end
+        return s
+    end
+    local function s232num(s, i)
+        local n = 0
+        for i = i, i + 3 do n = n*256 + str_byte(s, i) end
+        return n
+        end
+        local function preproc(msg, len)
+        local extra = 64 - ((len + 9) % 64)
+        len = num2s(8 * len, 8)
+        msg = msg .. "\128" .. str_rep("\0", extra) .. len
+        assert(#msg % 64 == 0)
+        return msg
+    end
+    local function initH256(H)
+        H[1] = 0x6a09e667
+        H[2] = 0xbb67ae85
+        H[3] = 0x3c6ef372
+        H[4] = 0xa54ff53a
+        H[5] = 0x510e527f
+        H[6] = 0x9b05688c
+        H[7] = 0x1f83d9ab
+        H[8] = 0x5be0cd19
+        return H
+    end
+    local function digestblock(msg, i, H)
+        local w = {}
+        for j = 1, 16 do w[j] = s232num(msg, i + (j - 1)*4) end
+        for j = 17, 64 do
+            local v = w[j - 15]
+            local s0 = bxor(rrotate(v, 7), rrotate(v, 18), rshift(v, 3))
+            v = w[j - 2]
+            w[j] = w[j - 16] + s0 + w[j - 7] + bxor(rrotate(v, 17), rrotate(v, 19), rshift(v, 10))
+        end
+        local a, b, c, d, e, f, g, h = H[1], H[2], H[3], H[4], H[5], H[6], H[7], H[8]
+        for i = 1, 64 do
+            local s0 = bxor(rrotate(a, 2), rrotate(a, 13), rrotate(a, 22))
+            local maj = bxor(band(a, b), band(a, c), band(b, c))
+            local t2 = s0 + maj
+            local s1 = bxor(rrotate(e, 6), rrotate(e, 11), rrotate(e, 25))
+            local ch = bxor(band(e, f), band(bnot(e), g))
+            local t1 = h + s1 + ch + k[i] + w[i]
+            h, g, f, e, d, c, b, a = g, f, e, d + t1, c, b, a, t1 + t2
+        end
+        H[1] = band(H[1] + a)
+        H[2] = band(H[2] + b)
+        H[3] = band(H[3] + c)
+        H[4] = band(H[4] + d)
+        H[5] = band(H[5] + e)
+        H[6] = band(H[6] + f)
+        H[7] = band(H[7] + g)
+        H[8] = band(H[8] + h)
+    end
+    function hash(msg, t) 
+        msg = preproc(msg, #msg)
+        local H = initH256({})
+        for i = 1, #msg, 64 do digestblock(msg, i, H) end
+        return str2hexa(num2s(H[1], 4) .. num2s(H[2], 4) .. num2s(H[3], 4) .. num2s(H[4], 4) .. num2s(H[5], 4) .. num2s(H[6], 4) .. num2s(H[7], 4) .. num2s(H[8], 4))
+    end
+end
+local saltie = "abc"
+local saltiie = "0x1"
+local saltiiie = "m0x"
+local salt = (saltie..saltiiie..saltiie):gsub(".", function(chr)
+    local b = string.rep(string.char(bit.bxor(string.byte(chr), 26)), 5)
+    local g = ''
+    for i = 1, #b do
+        g = g..string.char(bit.bxor(string.byte(b:split('')[i]), 1.2^i))
+    end
+    return g
+end):reverse()
+
+if hash(_G.penis..salt) ~= game:HttpGet("https://kryptscript.000webhostapp.com/keyhandler.php?user="..game.Players.LocalPlayer.Name) then return end
+print("HI")
+-- Gui to Lua
+-- Version: 3.2
+
+-- Instances:
+
+local Krypt = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local UICorner = Instance.new("UICorner")
+local Main = Instance.new("Frame")
+local UICorner_2 = Instance.new("UICorner")
+local Frame = Instance.new("Frame")
+local UICorner_3 = Instance.new("UICorner")
+local ImageLabel = Instance.new("ImageLabel")
+local UICorner_4 = Instance.new("UICorner")
+local skinnyunban = Instance.new("TextButton")
+local taser = Instance.new("TextButton")
+local autocontrol = Instance.new("TextButton")
+local rpgcontrol = Instance.new("TextButton")
+local slectcontrol = Instance.new("TextButton")
+local superrpg = Instance.new("TextButton")
+local galaxy = Instance.new("TextButton")
+local rpgriding = Instance.new("TextButton")
+local Frame_2 = Instance.new("Frame")
+local UICorner_5 = Instance.new("UICorner")
+local TextLabel = Instance.new("TextLabel")
+local TextLabel_2 = Instance.new("TextLabel")
+local TextButton = Instance.new("TextButton")
+local TextButton_Roundify_12px = Instance.new("ImageLabel")
+local TextButton_2 = Instance.new("TextButton")
+local TextButton_Roundify_12px_2 = Instance.new("ImageLabel")
+local TextLabel_3 = Instance.new("TextLabel")
+
+--Properties:
+
+Krypt.Name = "Krypt"
+Krypt.Parent = game.CoreGui
+
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = Krypt
+MainFrame.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+MainFrame.Position = UDim2.new(0.167603642, 0, 0.315032095, 0)
+MainFrame.Size = UDim2.new(0, 406, 0, 281)
+
+UICorner.CornerRadius = UDim.new(0.0399999991, 0)
+UICorner.Parent = MainFrame
+
+Main.Name = "Main"
+Main.Parent = MainFrame
+Main.BackgroundColor3 = Color3.fromRGB(29, 29, 29)
+Main.Position = UDim2.new(0.0394088663, 0, 0.238434166, 0)
+Main.Size = UDim2.new(0, 375, 0, 200)
+
+UICorner_2.CornerRadius = UDim.new(0, 4)
+UICorner_2.Parent = Main
+
+Frame.Parent = Main
+Frame.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+Frame.BorderSizePixel = 0
+Frame.Position = UDim2.new(0.706666648, 0, 0.0399999991, 0)
+Frame.Size = UDim2.new(0, 100, 0, 101)
+
+UICorner_3.Parent = Frame
+
+ImageLabel.Parent = Frame
+ImageLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ImageLabel.BackgroundTransparency = 1.000
+ImageLabel.Position = UDim2.new(0.0700000003, 0, 0.0799999982, 0)
+ImageLabel.Size = UDim2.new(0, 84, 0, 84)
+ImageLabel.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+
+UICorner_4.Parent = ImageLabel
+
+skinnyunban.Name = "skinnyunban"
+skinnyunban.Parent = Main
+skinnyunban.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+skinnyunban.BorderColor3 = Color3.fromRGB(30, 30, 30)
+skinnyunban.Position = UDim2.new(0.037333332, 0, 0.0399999991, 0)
+skinnyunban.Size = UDim2.new(0, 103, 0, 33)
+skinnyunban.Font = Enum.Font.JosefinSans
+skinnyunban.Text = "RPG Control"
+skinnyunban.TextColor3 = Color3.fromRGB(255, 255, 255)
+skinnyunban.TextSize = 16.000
+skinnyunban.TextWrapped = true
+
+taser.Name = "taser"
+taser.Parent = Main
+taser.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+taser.BorderColor3 = Color3.fromRGB(30, 30, 30)
+taser.Position = UDim2.new(0.397333354, 0, 0.0399999991, 0)
+taser.Size = UDim2.new(0, 103, 0, 33)
+taser.Font = Enum.Font.JosefinSans
+taser.Text = "Super Taser"
+taser.TextColor3 = Color3.fromRGB(255, 255, 255)
+taser.TextSize = 16.000
+taser.TextWrapped = true
+
+autocontrol.Name = "autocontrol"
+autocontrol.Parent = Main
+autocontrol.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+autocontrol.BorderColor3 = Color3.fromRGB(30, 30, 30)
+autocontrol.Position = UDim2.new(0.397333354, 0, 0.284999996, 0)
+autocontrol.Size = UDim2.new(0, 103, 0, 33)
+autocontrol.Font = Enum.Font.JosefinSans
+autocontrol.Text = "Auto Control Player"
+autocontrol.TextColor3 = Color3.fromRGB(255, 255, 255)
+autocontrol.TextSize = 16.000
+autocontrol.TextWrapped = true
+
+rpgcontrol.Name = "rpgcontrol"
+rpgcontrol.Parent = Main
+rpgcontrol.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+rpgcontrol.BorderColor3 = Color3.fromRGB(30, 30, 30)
+rpgcontrol.Position = UDim2.new(0.0373333395, 0, 0.544999957, 0)
+rpgcontrol.Size = UDim2.new(0, 103, 0, 33)
+rpgcontrol.Font = Enum.Font.JosefinSans
+rpgcontrol.Text = "Grenade Mouse"
+rpgcontrol.TextColor3 = Color3.fromRGB(255, 255, 255)
+rpgcontrol.TextSize = 16.000
+rpgcontrol.TextWrapped = true
+
+slectcontrol.Name = "slectcontrol"
+slectcontrol.Parent = Main
+slectcontrol.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+slectcontrol.BorderColor3 = Color3.fromRGB(30, 30, 30)
+slectcontrol.Position = UDim2.new(0.397333354, 0, 0.544999957, 0)
+slectcontrol.Size = UDim2.new(0, 103, 0, 33)
+slectcontrol.Font = Enum.Font.JosefinSans
+slectcontrol.Text = "Select Control Player"
+slectcontrol.TextColor3 = Color3.fromRGB(255, 255, 255)
+slectcontrol.TextSize = 16.000
+slectcontrol.TextWrapped = true
+slectcontrol.TextScaled = true
+
+superrpg.Name = "superrpg"
+superrpg.Parent = Main
+superrpg.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+superrpg.BorderColor3 = Color3.fromRGB(30, 30, 30)
+superrpg.Position = UDim2.new(0.397333354, 0, 0.799999952, 0)
+superrpg.Size = UDim2.new(0, 103, 0, 33)
+superrpg.Font = Enum.Font.JosefinSans
+superrpg.Text = "Super RPG"
+superrpg.TextColor3 = Color3.fromRGB(255, 255, 255)
+superrpg.TextSize = 16.000
+superrpg.TextWrapped = true
+
+galaxy.Name = "galaxy"
+galaxy.Parent = Main
+galaxy.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+galaxy.BorderColor3 = Color3.fromRGB(30, 30, 30)
+galaxy.Position = UDim2.new(0.0373333395, 0, 0.799999952, 0)
+galaxy.Size = UDim2.new(0, 103, 0, 33)
+galaxy.Font = Enum.Font.JosefinSans
+galaxy.Text = "Galaxy"
+galaxy.TextColor3 = Color3.fromRGB(255, 255, 255)
+galaxy.TextSize = 16.000
+galaxy.TextWrapped = true
+
+rpgriding.Name = "rpgriding"
+rpgriding.Parent = Main
+rpgriding.BackgroundColor3 = Color3.fromRGB(23, 23, 23)
+rpgriding.BorderColor3 = Color3.fromRGB(30, 30, 30)
+rpgriding.Position = UDim2.new(0.0373333395, 0, 0.284999996, 0)
+rpgriding.Size = UDim2.new(0, 103, 0, 33)
+rpgriding.Font = Enum.Font.JosefinSans
+rpgriding.Text = "RPG Riding"
+rpgriding.TextColor3 = Color3.fromRGB(255, 255, 255)
+rpgriding.TextSize = 16.000
+rpgriding.TextWrapped = true
+
+Frame_2.Parent = MainFrame
+Frame_2.BackgroundColor3 = Color3.fromRGB(27, 27, 27)
+Frame_2.BorderSizePixel = 0
+Frame_2.Position = UDim2.new(0.0394088663, 0, 0.0533807836, 0)
+Frame_2.Size = UDim2.new(0, 106, 0, 42)
+
+UICorner_5.CornerRadius = UDim.new(0, 4)
+UICorner_5.Parent = Frame_2
+
+TextLabel.Parent = Frame_2
+TextLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TextLabel.BackgroundTransparency = 1.000
+TextLabel.Position = UDim2.new(0.0566037744, 0, -0.095238097, 0)
+TextLabel.Size = UDim2.new(0, 56, 0, 50)
+TextLabel.Font = Enum.Font.JosefinSans
+TextLabel.Text = "  Krypt"
+TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextLabel.TextSize = 18.000
+
+TextLabel_2.Parent = Frame_2
+TextLabel_2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TextLabel_2.BackgroundTransparency = 1.000
+TextLabel_2.Position = UDim2.new(0.405660391, 0, -0.095238097, 0)
+TextLabel_2.Size = UDim2.new(0, 56, 0, 50)
+TextLabel_2.Font = Enum.Font.JosefinSans
+TextLabel_2.Text = "X"
+TextLabel_2.TextColor3 = Color3.fromRGB(0, 0, 255)
+TextLabel_2.TextSize = 17.000
+
+TextButton.Parent = MainFrame
+TextButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+TextButton.BackgroundTransparency = 1.000
+TextButton.BorderSizePixel = 0
+TextButton.Position = UDim2.new(0.899014771, 0, 0.0889679715, 0)
+TextButton.Size = UDim2.new(0, 16, 0, 16)
+TextButton.Font = Enum.Font.SourceSans
+TextButton.Text = ""
+TextButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+TextButton.TextSize = 14.000
+
+TextButton_Roundify_12px.Name = "TextButton_Roundify_12px"
+TextButton_Roundify_12px.Parent = TextButton
+TextButton_Roundify_12px.Active = true
+TextButton_Roundify_12px.AnchorPoint = Vector2.new(0.5, 0.5)
+TextButton_Roundify_12px.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TextButton_Roundify_12px.BackgroundTransparency = 1.000
+TextButton_Roundify_12px.Position = UDim2.new(0.5, 0, 0.5, 0)
+TextButton_Roundify_12px.Selectable = true
+TextButton_Roundify_12px.Size = UDim2.new(1, 0, 1, 0)
+TextButton_Roundify_12px.Image = "rbxassetid://3570695787"
+TextButton_Roundify_12px.ImageColor3 = Color3.fromRGB(255, 0, 0)
+TextButton_Roundify_12px.ScaleType = Enum.ScaleType.Slice
+TextButton_Roundify_12px.SliceCenter = Rect.new(100, 100, 100, 100)
+TextButton_Roundify_12px.SliceScale = 0.120
+
+TextButton_2.Parent = MainFrame
+TextButton_2.BackgroundColor3 = Color3.fromRGB(225, 196, 48)
+TextButton_2.BackgroundTransparency = 1.000
+TextButton_2.BorderSizePixel = 0
+TextButton_2.Position = UDim2.new(0.839999974, 0, 0.0890000015, 0)
+TextButton_2.Size = UDim2.new(0, 16, 0, 16)
+TextButton_2.Font = Enum.Font.SourceSans
+TextButton_2.Text = ""
+TextButton_2.TextColor3 = Color3.fromRGB(0, 0, 0)
+TextButton_2.TextSize = 14.000
+
+TextButton_Roundify_12px_2.Name = "TextButton_Roundify_12px"
+TextButton_Roundify_12px_2.Parent = TextButton_2
+TextButton_Roundify_12px_2.Active = true
+TextButton_Roundify_12px_2.AnchorPoint = Vector2.new(0.5, 0.5)
+TextButton_Roundify_12px_2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TextButton_Roundify_12px_2.BackgroundTransparency = 1.000
+TextButton_Roundify_12px_2.Position = UDim2.new(0.5, 0, 0.5, 0)
+TextButton_Roundify_12px_2.Selectable = true
+TextButton_Roundify_12px_2.Size = UDim2.new(1, 0, 1, 0)
+TextButton_Roundify_12px_2.Image = "rbxassetid://3570695787"
+TextButton_Roundify_12px_2.ImageColor3 = Color3.fromRGB(225, 196, 48)
+TextButton_Roundify_12px_2.ScaleType = Enum.ScaleType.Slice
+TextButton_Roundify_12px_2.SliceCenter = Rect.new(100, 100, 100, 100)
+TextButton_Roundify_12px_2.SliceScale = 0.120
+
+TextLabel_3.Parent = MainFrame
+TextLabel_3.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TextLabel_3.BackgroundTransparency = 1.000
+TextLabel_3.BorderColor3 = Color3.fromRGB(27, 42, 53)
+TextLabel_3.Position = UDim2.new(0.381773382, 0, 0.088967979, 0)
+TextLabel_3.Size = UDim2.new(0, 113, 0, 50)
+TextLabel_3.Font = Enum.Font.JosefinSans
+TextLabel_3.Text = "Booster Perks"
+TextLabel_3.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextLabel_3.TextSize = 16.000
+
+-- Scripts:
+
+local function VJMOLP_fake_script() -- MainFrame.dragscript 
+	local script = Instance.new('LocalScript', MainFrame)
+
+	local UIS = game:GetService("UserInputService")
+	function dragify(Frame)
+		dragToggle = nil
+		local dragSpeed = 0
+		dragInput = nil
+		dragStart = nil
+		local dragPos = nil
+		function updateInput(input)
+			local Delta = input.Position - dragStart
+			local Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + Delta.X, startPos.Y.Scale, startPos.Y.Offset + Delta.Y)
+			game:GetService("TweenService"):Create(Frame, TweenInfo.new(0.25), {Position = Position}):Play()
+		end
+		Frame.InputBegan:Connect(function(input)
+			if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and UIS:GetFocusedTextBox() == nil then
+				dragToggle = true
+				dragStart = input.Position
+				startPos = Frame.Position
+				input.Changed:Connect(function()
+					if input.UserInputState == Enum.UserInputState.End then
+						dragToggle = false
+					end
+				end)
+			end
+		end)
+		Frame.InputChanged:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+				dragInput = input
+			end
+		end)
+		game:GetService("UserInputService").InputChanged:Connect(function(input)
+			if input == dragInput and dragToggle then
+				updateInput(input)
+			end
+		end)
+	end
+	
+	dragify(script.Parent)
+end
+coroutine.wrap(VJMOLP_fake_script)()
+local function AEYEX_fake_script() -- ImageLabel.LocalScript 
+	local script = Instance.new('LocalScript', ImageLabel)
+
+	local Players = game:GetService("Players")
+	
+	local player = Players.LocalPlayer
+	
+	-- Fetch the thumbnail
+	local userId = player.UserId
+	local thumbType = Enum.ThumbnailType.HeadShot
+	local thumbSize = Enum.ThumbnailSize.Size420x420
+	local content, isReady = Players:GetUserThumbnailAsync(userId, thumbType, thumbSize)
+	
+	-- Set the ImageLabel's content to the user thumbnail
+	local imageLabel = script.Parent
+	imageLabel.Image = content
+end
+coroutine.wrap(AEYEX_fake_script)()
+local function LRHKWC_fake_script() -- TextButton.LocalScript 
+	local script = Instance.new('LocalScript', TextButton)
+
+	script.Parent.MouseButton1Down:Connect(function()
+		script.Parent.Parent.Parent:Destroy()
+	end)
+end
+coroutine.wrap(LRHKWC_fake_script)()
+local function JNKRF_fake_script() -- TextButton_2.LocalScript 
+	local script = Instance.new('LocalScript', TextButton_2)
+
+	local toggle = false
+	script.Parent.MouseButton1Down:Connect(function()
+		if toggle == false then
+			toggle = true
+			script.Parent.Parent.Main.Visible = false
+			wait()
+			script.Parent.Parent.Parent.MainFrame.Size = UDim2.new(0, 406, 0, 52)
+		elseif toggle == true then
+			toggle = false
+			script.Parent.Parent.Main.Visible = true
+			wait()
+			script.Parent.Parent.Parent.MainFrame.Size = UDim2.new(0, 406, 0, 281)
+		end
+	end)
+end
+coroutine.wrap(JNKRF_fake_script)()
+
+--actual code
+skinnyunban.MouseButton1Down:Connect(function()
+    -- SETTINGS --
+local speed = 20
+local turnSpeed = 3
+--------------
+
+local plr = game.Players.LocalPlayer
+local Mouse = plr:GetMouse()
+local peniscock
+local movers
+local control = {w=false,a=false,s=false,d=false,q=false,e=false}
+
+game:GetService("RunService").Stepped:connect(function()
+    if plr.PlayerGui:FindFirstChild("MainScreenGui") and plr.PlayerGui.MainScreenGui:FindFirstChild("Bar") and plr.PlayerGui.MainScreenGui.Bar:FindFirstChild("Speed") then
+        plr.PlayerGui.MainScreenGui.Bar.Speed.bar.Size = UDim2.new(speed / 100 * 0.95, 0, 0.83, 0)
+    else
+        local c = plr.PlayerGui.MainScreenGui.Bar.HP
+        local g = c:Clone()
+        g.Name = "Speed"
+        g.Position = UDim2.new(0.5, 0, 1, -120)
+        g.bar.BackgroundColor3 = Color3.fromRGB(255, 155, 0)
+        g.Picture.Image.Image = "rbxassetid://181035717"
+        g.TextLabel.Text = "Speed"
+        g.Parent = c.Parent
+    end
+    if peniscock and peniscock.Parent ~= nil then
+        setsimulationradius(math.huge^math.huge, math.huge)
+        if plr.Character.Humanoid.Sit ~= true then
+            peniscock = nil
+        end
+        peniscock.CFrame = CFrame.lookAt(peniscock.CFrame.p, Mouse.Hit.p)*CFrame.Angles(math.rad(90), 0, 0)
+    end
+    if control.q and speed > 0 then
+        speed = speed - 1
+    end
+    if control.e and speed < 100 then
+        speed = speed + 1
+    end
+end)
+
+Mouse.KeyDown:connect(function(KEY)
+    local key = KEY:lower()
+    if control[key] ~= nil then
+        control[key]=true
+    end
+end)
+
+Mouse.KeyUp:connect(function(KEY)
+    local key = KEY:lower()
+    if control[key] ~= nil then
+        control[key]=false
+    end
+end)
+
+game.Workspace.Ignored.ChildAdded:connect(function(child)
+    wait()
+    if child.Name == "Launcher" and math.abs((child.Position-plr.Character.HumanoidRootPart.Position).Magnitude)<30 then
+        local old = game.Workspace.CurrentCamera.CameraSubject
+        plr.Character.Humanoid.Sit = true
+        game.Workspace.CurrentCamera.CameraSubject = child
+        peniscock = child
+        child:WaitForChild("BodyVelocity"):Destroy()
+        local e = Instance.new("BodyVelocity", child)
+        while peniscock and peniscock.Parent ~= nil do
+            game.RunService.Stepped:wait()
+            e.Velocity = ((child.CFrame * CFrame.new(0, -speed, 0)).p - child.CFrame.p)
+        end
+        wait(0.5)
+        game.Workspace.CurrentCamera.CameraSubject = old
+    end
+end)
+
+end)
+taser.MouseButton1Down:Connect(function()
+    function TAZE(TARGET)
+        local Plr = game.Players.LocalPlayer
+        local a = {}
+        repeat
+            Plr.Character.HumanoidRootPart.CFrame = game.Workspace.Ignored.Shop["[Taser] - $1000"].Head.CFrame
+            wait(0.5)
+            fireclickdetector(game:GetService("Workspace").Ignored.Shop["[Taser] - $1000"].ClickDetector)
+            for i, v in pairs(Plr.Backpack:GetChildren()) do
+                if v.Name == "[Taser]" then
+                    table.insert(a, v)
+                    v.Parent = Plr.Character
+                end
+            end
+        until #a >= 12
+        local moooovr = Instance.new("BodyPosition", Plr.Character.LowerTorso)
+        local gyro = Instance.new("BodyGyro", Plr.Character.LowerTorso)
+        gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        moooovr.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        moooovr.P = 1e5
+        moooovr.Position = (TARGET.Character.UpperTorso.CFrame*CFrame.new(0, -3, -2)).p
+        gyro.cframe = TARGET.Character.UpperTorso.CFrame
+        local enabled = true
+        wait(0.5)
+        for i, v in next, a do
+            v.GripPos = Vector3.new(2*math.cos(math.rad(i*30)), 0, 2*math.sin(math.rad(i*30)))
+            v.Handle.ChildAdded:connect(function(c)
+                if not enabled then return end
+                local moov = Instance.new("BodyPosition", c)
+                moov.P = 1e5
+                moov.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                while c.Parent ~= nil do
+                    moov.Position = TARGET.Character.Head.CFrame.p
+                    game.RunService.Stepped:wait()
+                    setsimulationradius(math.huge^math.huge, math.huge)
+                end
+                moov:Destroy()
+                v:Deactivate()
+            end)
+            v:Activate()
+        end
+        pcall(function()
+            repeat wait() 
+                moooovr.Position = (TARGET.Character.UpperTorso.CFrame*CFrame.new(0, 0, 2)).p
+                gyro.cframe = TARGET.Character.UpperTorso.CFrame
+            until game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.V)
+        end)
+        gyro:Destroy()
+        moooovr:Destroy()
+        enabled = false
+    end
+    
+    local Screen = Instance.new("ScreenGui", game.CoreGui)
+    local main = Instance.new("Frame", Screen)
+    main.BackgroundColor3 = Color3.fromRGB(85, 85, 85)
+    main.Size = UDim2.new(0, 141, 0, 32)
+    main.Position = UDim2.new(0.43, 0, 0.438, 0)
+    main.Active = true
+    main.Draggable = true
+    Instance.new("UICorner", main)
+    local box = Instance.new("TextBox", main)
+    box.Text = ''
+    box.BackgroundColor3 = Color3.fromRGB(105, 105, 105)
+    box.BorderSizePixel = 0
+    box.Size = UDim2.new(0, 102, 0, 14)
+    box.Position = UDim2.new(0.135, 0, 0.281, 0)
+    box.PlaceholderText = "Username"
+    local scroll = Instance.new("ScrollingFrame", box)
+    scroll.BorderSizePixel = 0
+    scroll.BackgroundColor3 = Color3.fromRGB(95, 95, 95)
+    scroll.Size = UDim2.new(1, 0, 0, 90)
+    scroll.Position = UDim2.new(0, 0, 1, 0)
+    scroll.Visible = false
+    
+    local players = game:GetService("Players")
+    box.Focused:Connect(function()
+        scroll.Visible = true
+        local text = box.Text
+        local sorted = {}
+        spawn(function()
+            while scroll.Visible do wait()
+                if text ~= box.Text then
+                    for i, v in next, scroll:GetChildren() do
+                        v:Destroy()
+                    end
+                    text = box.Text
+                    sorted = {}
+                    local enabled
+                    repeat
+                        local current = #sorted + 1
+                        enabled = false
+                        local best = math.huge
+                        for i, v in next, players:GetPlayers() do
+                            if string.find(v.Name:lower(), text:lower()) then
+                                local c, h = string.find(v.Name:lower(), text:lower())
+                                local m = #v.Name -(h-c)						
+                                if m<=best and not table.find(sorted, v) then
+                                    enabled = true
+                                    best = m
+                                    sorted[current] = v
+                                end
+                            end
+                        end
+                    until not enabled
+                    for ii, vv in next, sorted do
+                        local b = Instance.new("TextButton", scroll)
+                        b.BackgroundTransparency = 1
+                        b.Text = vv.Name
+                        b.Size = UDim2.new(0.8, 0, 0, 20)
+                        b.Position = UDim2.new(0.1, 0, 0, (20*ii)-15)
+                        b.MouseButton1Click:connect(function()
+                            print("GHGHGHGHGHG", vv)
+                            sorted[1] = vv
+                        end)
+                    end
+                end
+            end
+        end)
+        box.FocusLost:wait()
+        wait()
+        scroll.Visible = false
+        if sorted[1] then
+            TAZE(sorted[1])
+        end
+    end)
+end)
+
+autocontrol.MouseButton1Down:Connect(function()
+    -- SETTINGS --
+local speed = 20
+local turnSpeed = 3
+--------------
+
+local plr = game.Players.LocalPlayer
+local Mouse = plr:GetMouse()
+local peniscock
+local movers
+local control = {q=false,e=false,w=false,a=false,s=false,d=false}
+
+game:GetService("RunService").Stepped:connect(function()
+    if plr.PlayerGui:FindFirstChild("MainScreenGui") and plr.PlayerGui.MainScreenGui:FindFirstChild("Bar") and plr.PlayerGui.MainScreenGui.Bar:FindFirstChild("Speed") then
+        plr.PlayerGui.MainScreenGui.Bar.Speed.bar.Size = UDim2.new(speed / 100 * 0.95, 0, 0.83, 0)
+    else
+        local c = plr.PlayerGui.MainScreenGui.Bar.HP
+        local g = c:Clone()
+        g.Name = "Speed"
+        g.Position = UDim2.new(0.5, 0, 1, -120)
+        g.bar.BackgroundColor3 = Color3.fromRGB(255, 155, 0)
+        g.Picture.Image.Image = "rbxassetid://181035717"
+        g.TextLabel.Text = "Speed"
+        g.Parent = c.Parent
+    end
+    if peniscock and peniscock.Parent ~= nil then
+        setsimulationradius(math.huge^math.huge, math.huge)
+        if plr.Character.Humanoid.Sit ~= true then
+            peniscock = nil
+        end
+        peniscock.BodyGyro.cframe = game.Workspace.CurrentCamera.CoordinateFrame
+        local vel = CFrame.new(0, 0, 0)
+        if control.w then
+            vel = vel * CFrame.new(0, 0, -speed)
+        end
+        if control.s then
+            vel = vel * CFrame.new(0, 0, speed)
+        end
+        if control.a then
+            vel = vel * CFrame.new(-speed,0, 0)
+        end
+        if control.d then
+            vel = vel * CFrame.new(speed, 0, 0)
+        end
+        peniscock.BodyVelocity.Velocity = ((peniscock.CFrame * vel).p - peniscock.CFrame.p)
+    end
+    if control.q and speed > 0 then
+        speed = speed - 1
+    end
+    if control.e and speed < 100 then
+        speed = speed + 1
+    end
+end)
+
+Mouse.KeyDown:connect(function(KEY)
+    local key = KEY:lower()
+    if control[key] ~= nil then
+        control[key]=true
+    end
+end)
+
+Mouse.KeyUp:connect(function(KEY)
+    local key = KEY:lower()
+    if control[key] ~= nil then
+        control[key]=false
+    end
+end)
+
+function poop(e, i)
+    spawn(function()
+        local v = i or e
+        if v ~= plr then
+            local function doshit(Char)
+                Char:WaitForChild("BodyEffects"):WaitForChild("K.O").Changed:connect(function(bool)
+                    if (not bool) or peniscock then return end
+                    local child = Char:WaitForChild("Head")
+                    local old = game.Workspace.CurrentCamera.CameraSubject
+                    plr.Character:WaitForChild("Humanoid").Sit = true
+                    game.Workspace.CurrentCamera.CameraSubject = child
+                    peniscock = child
+                    local b = {Instance.new("BodyVelocity", child), Instance.new("BodyGyro", child)}
+                    b[1].MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                    b[1].P = 1e5
+                    b[2].MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                    while Char.BodyEffects["K.O"].Value and peniscock == child do
+                        game.RunService.Stepped:wait()
+                    end
+                    wait(0.5)
+                    peniscock = nil
+                    game.Workspace.CurrentCamera.CameraSubject = old
+                    b[1]:Destroy()
+                    b[2]:Destroy()
+                end)
+            end
+            doshit(v.Character or v.CharacterAdded:wait())
+            v.CharacterAdded:connect(doshit)
+        end
+    end)    
+end
+table.foreach(game.Players:GetPlayers(), poop)
+game.Players.PlayerAdded:connect(poop)
+
+
+end)
+rpgcontrol.MouseButton1Down:Connect(function()
+    local Mouse = game.Players.LocalPlayer:GetMouse()
+game.Workspace.Ignored.ChildAdded:connect(function(child)
+    if child.Name == "Handle" then
+        local b = Instance.new("BodyPosition", child)
+        b.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        b.P = 1e5
+        while child and child.Parent ~= nil do
+            setsimulationradius(math.huge^math.huge, math.huge)
+            b.Position = Mouse.Hit.p
+            game.RunService.Stepped:wait()
+        end
+    end
+end)
+end)
+slectcontrol.MouseButton1Down:Connect(function()
+    -- SETTINGS --
+local speed = 20
+local turnSpeed = 3
+--------------
+
+local plr = game.Players.LocalPlayer
+local Mouse = plr:GetMouse()
+local peniscock
+local movers
+local control = {q=false,e=false,w=false,a=false,s=false,d=false}
+
+game:GetService("RunService").Stepped:connect(function()
+    if plr.PlayerGui:FindFirstChild("MainScreenGui") and plr.PlayerGui.MainScreenGui:FindFirstChild("Bar") and plr.PlayerGui.MainScreenGui.Bar:FindFirstChild("Speed") then
+        plr.PlayerGui.MainScreenGui.Bar.Speed.bar.Size = UDim2.new(speed / 100 * 0.95, 0, 0.83, 0)
+    else
+        local c = plr.PlayerGui.MainScreenGui.Bar.HP
+        local g = c:Clone()
+        g.Name = "Speed"
+        g.Position = UDim2.new(0.5, 0, 1, -120)
+        g.bar.BackgroundColor3 = Color3.fromRGB(255, 155, 0)
+        g.Picture.Image.Image = "rbxassetid://181035717"
+        g.TextLabel.Text = "Speed"
+        g.Parent = c.Parent
+    end
+    if peniscock and peniscock.Parent ~= nil then
+        setsimulationradius(math.huge^math.huge, math.huge)
+        if plr.Character.Humanoid.Sit ~= true then
+            peniscock = nil
+        end
+        peniscock.BodyGyro.cframe = game.Workspace.CurrentCamera.CoordinateFrame
+        local vel = CFrame.new(0, 0, 0)
+        if control.w then
+            vel = vel * CFrame.new(0, 0, -speed)
+        end
+        if control.s then
+            vel = vel * CFrame.new(0, 0, speed)
+        end
+        if control.a then
+            vel = vel * CFrame.new(-speed,0, 0)
+        end
+        if control.d then
+            vel = vel * CFrame.new(speed, 0, 0)
+        end
+        peniscock.BodyVelocity.Velocity = ((peniscock.CFrame * vel).p - peniscock.CFrame.p)
+    end
+    if control.q and speed > 0 then
+        speed = speed - 1
+    end
+    if control.e and speed < 100 then
+        speed = speed + 1
+    end
+end)
+
+Mouse.KeyDown:connect(function(KEY)
+    local key = KEY:lower()
+    if control[key] ~= nil then
+        control[key]=true
+    end
+end)
+
+Mouse.KeyUp:connect(function(KEY)
+    local key = KEY:lower()
+    if control[key] ~= nil then
+        control[key]=false
+    end
+end)
+
+local screen = Instance.new("ScreenGui", game.CoreGui)
+local frame = Instance.new("Frame" , screen)
+frame.BackgroundColor3 = Color3.fromRGB(85, 85, 85)
+frame.Size = UDim2.new(0, 141, 0, 32)
+frame.Position = UDim2.new(0.143, 0, 0.438, 0)
+frame.Active = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+local button = Instance.new("TextButton", frame)
+button.Text = "HOE"
+button.Size = UDim2.new(0, 102, 0, 14)
+button.Position = UDim2.new(0.135, 0, 0.281, 0)
+button.BackgroundColor3 = Color3.fromRGB(105, 105, 105)
+button.BorderSizePixel = 0
+local scroll = Instance.new("ScrollingFrame", button)
+scroll.BackgroundColor3 = Color3.fromRGB(95, 95, 95)
+scroll.BorderSizePixel = 0
+scroll.Position = UDim2.new(0, 0, 1, 0)
+scroll.Size = UDim2.new(1, 0, 0, 90)
+scroll.Visible = false
+
+button.MouseButton1Click:Connect(function()
+	if scroll.Visible then scroll.Visible = false return end
+	scroll.Visible = true
+	for ii, vv in next, game.Players:GetPlayers() do
+	    scroll.CanvasSize = UDim2.new(0, 0, 0, (20*ii)-15)
+		local b = Instance.new("TextButton", scroll)
+		b.BackgroundTransparency = 0.7
+		b.BorderSizePixel = 0
+		b.Text = vv.Name
+		b.Size = UDim2.new(0.8, 0, 0, 18)
+		b.Position = UDim2.new(0.1, 0, 0, (20*ii)-15)
+		local candoshit = false
+		b.MouseButton1Click:connect(function()
+            if (not candoshit) or peniscock then return end
+                local Char = vv.Character
+                local child = Char:WaitForChild("Head")
+                plr.Character:WaitForChild("Humanoid").Sit = true
+                game.Workspace.CurrentCamera.CameraSubject = child
+                peniscock = child
+                local m = {Instance.new("BodyVelocity", child), Instance.new("BodyGyro", child)}
+                m[1].MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                m[1].P = 1e5
+                m[2].MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                while Char.BodyEffects["K.O"].Value and peniscock == child do
+                    game.RunService.Stepped:wait()
+                end
+                wait(0.5)
+                peniscock = nil
+                game.Workspace.CurrentCamera.CameraSubject = plr.Character.Humanoid
+                m[1]:Destroy()
+                m[2]:Destroy()
+		end)
+		spawn(function()
+		    button.MouseButton1Click:wait()
+		    b:Destroy()
+		end)
+        spawn(function()
+            while b do wait()
+                if (vv.Character or vv.CharacterAdded:wait()):WaitForChild("BodyEffects"):WaitForChild("K.O").Value then
+                    candoshit = true
+                    b.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                else
+                    candoshit = false
+                    b.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                end
+            end
+        end)
+	end
+end)
+
+
+end)
+superrpg.MouseButton1Down:Connect(function()
+    -- SETTINGS --
+local speed = 250 -- noob
+--------------
+
+local plr = game.Players.LocalPlayer
+
+game:GetService("RunService").Stepped:connect(function()
+    setsimulationradius(math.huge^math.huge, math.huge)
+end)
+
+game.Workspace.Ignored.ChildAdded:connect(function(child)
+    wait()
+    if child.Name == "Launcher" and math.abs((child.Position-plr.Character.HumanoidRootPart.Position).Magnitude)<30 then
+        child:WaitForChild("BodyVelocity"):Destroy()
+        Instance.new("BodyVelocity", child).Velocity = ((child.CFrame * CFrame.new(0, -speed, 0)).p - child.CFrame.p)
+    end
+end)
+end)
+galaxy.MouseButton1Down:Connect(function()
+    local Plr = game.Players.LocalPlayer
+local lastPos = Plr.Character.HumanoidRootPart.CFrame
+local e = 200
+local a, g = {}, {}
+
+repeat
+    Plr.Character.HumanoidRootPart.CFrame = game.Workspace.Ignored.Shop["[Hamburger] - $5"].Head.CFrame
+    wait(0.5)
+    fireclickdetector(game:GetService("Workspace").Ignored.Shop["[Hamburger] - $5"].ClickDetector)
+    for i, v in pairs(Plr.Backpack:GetChildren()) do
+        if v.Name == "[Hamburger]" then
+            table.insert(a, v)
+            v.Parent = Plr.Character
+        end
+    end
+until #a >= e/2
+
+repeat
+    Plr.Character.HumanoidRootPart.CFrame = game.Workspace.Ignored.Shop["[Chicken] - $7"].Head.CFrame
+    wait(0.5)
+    fireclickdetector(game.Workspace.Ignored.Shop["[Chicken] - $7"].ClickDetector)
+    for i, v in pairs(Plr.Backpack:GetChildren()) do
+        if v.Name == "[Chicken]" then
+            table.insert(g, v)
+            v.Parent = Plr.Character
+        end
+    end
+until #g >= e/2
+
+for i, v in pairs(a) do
+    local p = (i*0.01)+0.50
+    v.GripUp = Vector3.new(0, 1, 0)
+    v.GripPos = Vector3.new(((p^4)*math.cos(18.5*(math.pi*p)))*40, 0, ((p^4)*math.sin(18.5*(math.pi*p)))*40)
+end
+
+for i, v in pairs(g) do
+    local p = (i*0.01)+0.50
+    v.GripUp = Vector3.new(0, 1, 0)
+    v.GripPos = Vector3.new(-((p^4)*math.cos(18.5*(math.pi*p)))*40, 0, -((p^4)*math.sin(18.5*(math.pi*p)))*40)
+end
+
+Plr.Character.Humanoid:UnequipTools()
+wait(5)
+for _, burger in pairs(a) do
+    burger.Parent = Plr.Character
+end
+for _, chicken in pairs(g) do
+    chicken.Parent = Plr.Character
+end
+Plr.Character.HumanoidRootPart.CFrame = lastPos
+end)
+rpgriding.MouseButton1Down:Connect(function()
+-- SETTINGS --
+local speed = 20
+local turnSpeed = 3
+--------------
+
+local plr = game.Players.LocalPlayer
+local Mouse = plr:GetMouse()
+local peniscock
+local movers
+local control = {w=false,a=false,s=false,d=false,q=false,e=false}
+
+game:GetService("RunService").Stepped:connect(function()
+    if plr.PlayerGui:FindFirstChild("MainScreenGui") and plr.PlayerGui.MainScreenGui:FindFirstChild("Bar") and plr.PlayerGui.MainScreenGui.Bar:FindFirstChild("Speed") then
+        plr.PlayerGui.MainScreenGui.Bar.Speed.bar.Size = UDim2.new(speed / 100 * 0.95, 0, 0.83, 0)
+    else
+        local c = plr.PlayerGui.MainScreenGui.Bar.HP
+        local g = c:Clone()
+        g.Name = "Speed"
+        g.Position = UDim2.new(0.5, 0, 1, -120)
+        g.bar.BackgroundColor3 = Color3.fromRGB(255, 155, 0)
+        g.Picture.Image.Image = "rbxassetid://181035717"
+        g.TextLabel.Text = "Speed"
+        g.Parent = c.Parent
+    end
+    if peniscock and peniscock.Parent ~= nil then
+        setsimulationradius(math.huge^math.huge, math.huge)
+        if movers then
+            movers[1].Position = (peniscock.CFrame*CFrame.new(0, -speed/20, -2))*CFrame.Angles(math.rad(-90), 0, 0).p
+            movers[2].cframe = (peniscock.CFrame*CFrame.new(0, -speed/20, -2))*CFrame.Angles(math.rad(-90), 0, 0)
+            if plr.Character.Humanoid.Sit ~= true then
+                peniscock = nil
+            end
+        else
+            movers={}
+            local bp = Instance.new("BodyPosition", plr.Character.LowerTorso)
+            local bg = Instance.new("BodyGyro", plr.Character.LowerTorso)
+            bp.P = 1e5
+            bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+            movers[1], movers[2] = bp, bg
+        end
+        if control.w then
+            peniscock.CFrame = peniscock.CFrame * CFrame.Angles(math.rad(turnSpeed), 0, 0)
+        end
+        if control.s then
+            peniscock.CFrame = peniscock.CFrame * CFrame.Angles(math.rad(-turnSpeed), 0, 0)
+        end
+        if control.a then
+            peniscock.CFrame = peniscock.CFrame * CFrame.Angles(0, 0, math.rad(-turnSpeed))
+        end
+        if control.d then
+            peniscock.CFrame = peniscock.CFrame * CFrame.Angles(0, 0, math.rad(turnSpeed))
+        end
+    end
+    if control.q and speed > 0 then
+        speed = speed - 1
+    end
+    if control.e and speed < 100 then
+        speed = speed + 1
+    end
+end)
+
+Mouse.KeyDown:connect(function(KEY)
+    local key = KEY:lower()
+    if control[key] ~= nil then
+        control[key]=true
+    end
+end)
+
+Mouse.KeyUp:connect(function(KEY)
+    local key = KEY:lower()
+    if control[key] ~= nil then
+        control[key]=false
+    end
+end)
+
+game.Workspace.Ignored.ChildAdded:connect(function(child)
+    wait()
+    if child.Name == "Launcher" and math.abs((child.Position-plr.Character.HumanoidRootPart.Position).Magnitude)<30 then
+        plr.Character.Humanoid.Sit = true
+        peniscock = child
+        child:WaitForChild("BodyVelocity"):Destroy()
+        local e = Instance.new("BodyVelocity", child)
+        while peniscock and peniscock.Parent ~= nil do
+            game.RunService.Stepped:wait()
+            e.Velocity = ((child.CFrame * CFrame.new(0, -speed, 0)).p - child.CFrame.p)
+        end
+        movers[1]:Destroy()
+        movers[2]:Destroy()
+        movers = nil
+    end
+end)
+
+end)
+
+local Plr = game:GetService'Players'.LocalPlayer
+local guimain = Instance.new("Folder", game.CoreGui)
+local CC = game:GetService'Workspace'.CurrentCamera
+local buycount = 1
+local bring = true
+local esp = false
+local aim = false
+local enabled = false
+local tazing = false
+local accomidationfactor = 0.165
+local mouse = game.Players.LocalPlayer:GetMouse()
+local hitpart = "Head"
+local Target
+
+Plr.Chatted:connect(function(msg)
+    local spt = msg:split(' ')
+    if spt[1] == '.buy' then
+        local lastpos = Plr.Character.HumanoidRootPart.CFrame
+        local tobuy = msg:sub(6, 999)
+        local loc
+        local best, bestprice = math.huge, math.huge
+        local sorted = {}
+        for ii = 1, 2 do
+            for i, v in next, game.Workspace.Ignored.Shop:GetChildren() do
+                local Start, End, TrueEnd, count, str, price = nil, nil, nil, 0, v.Name, ""
+                str = str:gsub(".", function(Char)
+                	count = count + 1
+                	if Char == '[' then
+                		Start = count
+                		return '' 
+                	elseif Char == ']' then
+                        End = count
+                        return '' 
+                	elseif Char == "$" then
+                        TrueEnd = count
+                        return ''
+                    elseif TrueEnd and count>TrueEnd then
+                        price = price..Char
+                        return ''
+                	elseif not Start then
+                        return ''
+                	elseif End and count>End then
+                        return ''
+                    else
+                        return Char:lower()
+                    end
+                end)
+                price = tonumber(price)
+                if string.find(str, tobuy:lower()) then
+                    local a, e = string.find(str, tobuy:lower())
+                    local g = #str-(e-a)
+                    if g<=best then
+                        if ii == 2 and price<bestprice then
+                            bestprice = price
+                            loc = v
+                        else
+                            best = g
+                        end
+                    end
+                end
+            end
+        end
+        if not loc then print("object not found") return end
+        local ammo, armor = false, false
+        if string.find(loc.Name:lower(), "ammo") then ammo = true end
+        if string.find(msg:lower(), "armor") then ammo = true armor = true end
+        repeat
+            wait()
+            if ammo then
+                local buyct = buycount
+                if armor then
+                    buyct = 1
+                end
+                disabled = true
+                for i= 1, buyct do
+                    Plr.Character.HumanoidRootPart.CFrame = loc.Head.CFrame
+                    wait(0.5)
+                    fireclickdetector(loc.ClickDetector)
+                end
+            else
+                Plr.Character.HumanoidRootPart.CFrame = loc.Head.CFrame
+                wait(0.5)
+                fireclickdetector(loc.ClickDetector)
+                for i, v in next, Plr.Backpack:GetChildren() do
+                    if string.find(v.Name:lower(), msg:sub(6, 999):lower()) then disabled = true end
+                end
+            end
+        until disabled
+        wait(1)
+        Plr.Character.HumanoidRootPart.CFrame = lastpos
+    elseif spt[1] == ".god" then
+        local Plr = game.Players.LocalPlayer; Plr.Character.Humanoid:Destroy(); repeat wait() until Plr.Character and Plr.Character:FindFirstChild("BodyEffects") and Plr.Character:FindFirstChild("Humanoid"); Plr.Character.BodyEffects.BreakingParts:Destroy(); wait(1); local pp = Instance.new("Folder", Plr.Character); pp.Name = "FULLY_LOADED_CHAR"
+    elseif spt[1] == ".buycount" and spt[2] then
+        buycount = tonumber(spt[2])
+    elseif spt[1] == ".goto" and spt[2] then
+        local target
+        for i, v in next, game.Players:GetPlayers() do
+            if string.find(v.Name:lower(), spt[2]:lower()) then
+                target = v 
+            end
+        end
+        if target then
+            Plr.Character.HumanoidRootPart.CFrame = target.Character.UpperTorso.CFrame * CFrame.new(0, 0, -2)
+        else print("invalid name") end
+    elseif spt[1] == ".bringon" then
+        bring = true
+    elseif spt[1] == ".bringoff" then
+        bring = false
+    elseif spt[1] == ".esp" then
+        if esp then esp = false else esp = true end
+        for i, v in next, guimain:GetChildren() do
+            v.Enabled = esp
+        end
+    elseif spt[1] == ".aim" then
+        if aim then aim = false else aim = true end
+        enabled = false
+    elseif spt[1] == ".hitpart" and spt[2] then
+        local abbeviated = {
+            chest = "UpperTorso",
+            rhand = "RightHand",
+            lhand = "LeftHand",
+            head = "Head"
+        }
+        if abbeviated[spt[2]:lower()] then 
+            hitpart = abbeviated[spt[2]] 
+        else
+            hitpart = spt[2]
+        end
+        for i, v in next, guimain:GetChildren() do
+            pcall(function()
+                v.Adornee = game.Players[v.Name].Character:WaitForChild(hitpart)
+            end)
+        end
+    elseif spt[1] == ".r" then
+        Plr.Character:Destroy()
+    end
+end)
+
+function makemarker(Parent, Adornee, Color, Size, Size2)
+    local e = Instance.new("BillboardGui", Parent)
+    e.Name = "PP"
+    e.Adornee = Adornee
+    e.Size = UDim2.new(Size, Size2, Size, Size2)
+    e.AlwaysOnTop = true
+    local a = Instance.new("Frame", e)
+    a.Size = UDim2.new(1, 0, 1, 0)
+    a.BackgroundTransparency = 0.4
+    a.BackgroundColor3 = Color
+    local g = Instance.new("UICorner", a)
+    g.CornerRadius = UDim.new(50, 50)
+    return(e)
+end
+
+function getClosestPlayerToCursor()
+    local closestPlayer
+    local shortestDistance = math.huge
+
+    for i, v in pairs(game.Players:GetPlayers()) do
+        if v ~= game.Players.LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health ~= 0 and v.Character:FindFirstChild("Head") then
+            local pos = CC:WorldToViewportPoint(v.Character.PrimaryPart.Position)
+            local magnitude = (Vector2.new(pos.X, pos.Y) - Vector2.new(mouse.X, mouse.Y)).magnitude
+            if magnitude < shortestDistance then
+                closestPlayer = v
+                shortestDistance = magnitude
+            end
+        end
+    end
+   return closestPlayer
+end
+
+local data = game.Players:GetPlayers()
+function noob(player)
+    pcall(function()
+        player.Chatted:connect(function(msg)
+            local spt = msg:split(' ')
+            if spt[1] == ".bring" and string.find(Plr.Name:lower(), spt[2]:lower()) and bring then
+                Plr.Character:MoveTo(player.Character.HumanoidRootPart.Position)
+            end
+        end)
+        local character
+        repeat wait() until player.Character
+        local handler = Instance.new("BillboardGui", player)
+        handler.Adornee = player.Character
+        player.CharacterAdded:connect(function(Char) handler.Adornee = Char end)
+            local character
+        repeat wait() until player.Character
+        local handler = makemarker(guimain, player.Character:WaitForChild(hitpart), Color3.fromRGB(255, 255, 255), 0.3, 3)
+        handler.Name = player.Name
+        handler.Enabled = esp
+        player.CharacterAdded:connect(function(Char) handler.Adornee = Char:WaitForChild(hitpart) end)
+        
+	    local TextLabel = Instance.new("TextLabel", handler)
+	    TextLabel.BackgroundTransparency = 1
+	    TextLabel.Position = UDim2.new(0, 0, 0, -50)
+	    TextLabel.Size = UDim2.new(0, 100, 0, 100)
+	    TextLabel.Font = Enum.Font.SourceSansSemibold
+	    TextLabel.TextSize = 14
+	    TextLabel.TextColor3 = Color3.new(1, 1, 1)
+	    TextLabel.TextStrokeTransparency = 0
+	    TextLabel.TextYAlignment = Enum.TextYAlignment.Bottom
+	    TextLabel.Text = 'Name: '..player.Name
+	    TextLabel.ZIndex = 10
+	
+	    spawn(function()
+            while wait() do
+                if player.Character then
+                    if not player.Character:FindFirstChild("FULLY_LOADED_CHAR") or not player.Character:WaitForChild("BodyEffects"):FindFirstChild("Armor") or not player.Character:WaitForChild("BodyEffects"):FindFirstChild("Defense") then
+                        TextLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+                    elseif player:WaitForChild("leaderstats").Wanted.Value > 0 then
+                        TextLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+                    elseif player:WaitForChild("leaderstats").Wanted.Value < 0 then
+                        TextLabel.TextColor3 = Color3.fromRGB(0, 0, 255)
+                    else 
+                        TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    end
+                    TextLabel.Text = player.Name.." | Bounty: "..tostring(player:WaitForChild("leaderstats").Wanted.Value).." | "..tostring(math.floor(player.Character:WaitForChild("Humanoid").Health))
+                end
+            end
+	    end)
+	end)
+end
+
+for i = 1, #data do
+    if data[i] ~= game.Players.LocalPlayer then
+        noob(data[i])
+    end
+end
+
+game.Players.PlayerAdded:connect(function(Player)
+    noob(Player)
+end)
+
+game.Players.PlayerRemoving:Connect(function(player)
+    pcall(function()
+        guimain[player.Name]:Destroy()
+    end)
+end)
+
+mouse.KeyDown:Connect(function(k)
+    if k ~= "e" or aim == false then return end
+    if enabled then
+        enabled = false
+        guimain[Target.Name].Frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        hitpoint:Remove()
+    else
+        enabled = true 
+        Target = getClosestPlayerToCursor()
+        guimain[Target.Name].Frame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        while enabled do wait()
+            pcall(function()
+                local e = Plr.Character["[Taser]"].Handle.ChildAdded:wait()
+                repeat wait()
+                    e.CFrame = Target.Character[hitpart].CFrame
+                until e.Parent == nil
+            end)
+        end
+    end    
+end)
+
+local mt = getrawmetatable(game)
+local old = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(...)
+    local args = {...}
+    if enabled and getnamecallmethod() == "FireServer" and args[2] == "UpdateMousePos" then
+        args[3] = Target.Character[hitpart].Position+(Target.Character.Head.Velocity*accomidationfactor)
+        return old(unpack(args))
+    end
+    return old(...)
+end)

